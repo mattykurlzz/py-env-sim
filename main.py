@@ -1,5 +1,5 @@
 import numpy as np
-import pygame
+import pygame, operator
 
 GRAVITY_CONST = 9.81
 
@@ -79,9 +79,16 @@ class Engine:
             
 class RocketBody:
     dims: list[float]
+    current_coordinates: np.ndarray
+    main_vector: Vector
     
-    def __init__(self) -> None:
-        self.dims = [5, 25]
+    def __init__(self, dims:tuple[float, float] = (5, 25), weight:float = 90, tilt: float = 0) -> None:
+        self.dims = [dims[0], dims[1]]
+        self.weight = weight
+        self.tilt = tilt
+        
+        self.current_coordinates = np.array([0, 0], dtype=datatype)
+        self.current_vector = transforms.rotate(tilt, Vector())
 
 class Rocket: 
     forces: list[Force]
@@ -90,18 +97,15 @@ class Rocket:
     def add_force(self, force: Force):
         self.forces.append(force)
 
-    def __init__(self, mass: float, forces: list[Force], engines: list[Engine]):
-        self.current_coordinates = np.array([0, 0], dtype=datatype)
+    def __init__(self, forces: list[Force], engines: list[Engine], initial_tilt: float = 0):
         # delta movement of a rocket from prev step
         self.delta_coordinates = np.array([0, 0], dtype=datatype) 
-        self.current_vector = Vector()
         self.current_speed: np.ndarray = np.array([0, 0], dtype=datatype)
         self.prev_speed = np.array([0, 0], dtype=datatype)
         self.current_force_applied = np.array([0, 0], dtype=datatype)
         
-        self.body_model = RocketBody
+        self.body_model = RocketBody(tilt = initial_tilt)
 
-        self.rocket_mass = mass
         self.prev_time = 0
         self.forces = forces
         self.engines = engines
@@ -115,41 +119,51 @@ class Rocket:
         for force in self.forces:
             arg_list: list[float] = []
             for parameter_name in force.attribute_names:
-                arg_list.append(getattr(self, parameter_name))
+                arg_list.append(operator.attrgetter(parameter_name)(self))
             real_acceleration = force.update(real_acceleration, *arg_list) # type: ignore
         
         for engine in self.engines:
-            engine_force_vector = engine.renew_force_vector(self.current_vector)
+            engine_force_vector = engine.renew_force_vector(self.body_model.current_vector)
             engine_power = engine.current_force
             real_acceleration += engine_force_vector.dims * -1. * engine_power
 
         self.current_speed += real_acceleration * time_step 
 
         self.delta_coordinates = ( self.current_speed * time_step + self.prev_speed * time_step ) / 2
-        self.current_coordinates += self.delta_coordinates
-
-def launch_sim(screen: pygame.Surface, center_offset: tuple[int, int]):
+        self.body_model.current_coordinates += self.delta_coordinates
+        
+def init_rocket() -> Rocket:
     main_engine_transforms: Callable[[Vector], Vector] = lambda v: transforms.rotate(np.pi, v)
-    main_engine = Engine(2000, 100, main_engine_transforms)
+    main_engine = Engine(2000, 90, main_engine_transforms)
 
     def gravity_func(force: np.ndarray, mass: float) -> np.ndarray:
         force[1] -= GRAVITY_CONST * mass
         return force
-    gravity = Force(gravity_func, ["rocket_mass"])
+    gravity = Force(gravity_func, ["body_model.weight"])
 
-    myrocket = Rocket(mass=90, forces=[gravity], engines=[main_engine])
+    myrocket = Rocket(forces=[gravity], engines=[main_engine], initial_tilt = 10 * (np.pi / 180))
 
     for engine in myrocket.engines:
         engine.turn_on()
 
+    return myrocket
+
+
+def launch_sim(screen: pygame.Surface, center_offset: tuple[int, int]):
     running = True
     dt = 0
     fps = 60
     
-    rocket_x = myrocket.current_coordinates[0] + center_offset[0]
-    rocket_y = myrocket.current_coordinates[1] + center_offset[1]
-    rocket_fig = pygame.Rect(float(rocket_x), float(rocket_y), 10, 10)
+    myrocket = init_rocket()
+    
+    rocket_x = myrocket.body_model.current_coordinates[0] + center_offset[0]
+    rocket_y = myrocket.body_model.current_coordinates[1] + center_offset[1]
 
+    rocket_surface = pygame.Surface(myrocket.body_model.dims)
+    rect = rocket_surface.get_rect()
+    rect.center = (rocket_x, rocket_y)
+
+    angle = 0
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -159,14 +173,22 @@ def launch_sim(screen: pygame.Surface, center_offset: tuple[int, int]):
         myrocket.time_step(dt)
         
         screen.fill("white")
-        rocket_fig.move_ip(*(myrocket.delta_coordinates.astype(int) * -1))
-        pygame.draw.rect(screen, "black", rocket_fig)
+        # rect.move_ip(*(myrocket.delta_coordinates.astype(int) * -1))
+        old_center = rect.center
+
+        angle += 5
+        rotated_surface = pygame.transform.rotate(rocket_surface, angle=angle % 360)
+        rotated_rect = rotated_surface.get_rect()
+        rotated_rect.center = old_center
+
+        pygame.draw.rect(screen, "black", rotated_rect)
+        screen.blit(rotated_surface, rotated_rect)
         pygame.display.flip()
         
         for engine in myrocket.engines:
             engine.set_force(engine.current_force + 100)
 
-        print(myrocket.current_coordinates)
+        print(myrocket.body_model.current_coordinates)
 
 if __name__ == "__main__":
     pygame.init()
