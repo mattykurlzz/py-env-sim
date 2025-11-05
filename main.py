@@ -134,7 +134,7 @@ class Rocket:
         
 def init_rocket() -> Rocket:
     main_engine_transforms: Callable[[Vector], Vector] = lambda v: transforms.rotate(np.pi, v)
-    main_engine = Engine(2000, 90, main_engine_transforms)
+    main_engine = Engine(2000, 600, main_engine_transforms)
 
     def gravity_func(force: np.ndarray, mass: float) -> np.ndarray:
         force[1] -= GRAVITY_CONST * mass
@@ -159,11 +159,11 @@ def launch_sim(screen: pygame.Surface, center_offset: tuple[int, int]):
     rocket_x = myrocket.body_model.current_coordinates[0] + center_offset[0]
     rocket_y = myrocket.body_model.current_coordinates[1] + center_offset[1]
 
-    rocket_surface = pygame.Surface(myrocket.body_model.dims)
-    rect = rocket_surface.get_rect()
+    rocket_surface = pygame.Surface(myrocket.body_model.dims, pygame.SRCALPHA)
+    rect = pygame.draw.rect(rocket_surface, "black", rocket_surface.get_rect())
     rect.center = (rocket_x, rocket_y)
+    angle = -1 * myrocket.body_model.tilt * 180 / np.pi
 
-    angle = 0
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -173,20 +173,19 @@ def launch_sim(screen: pygame.Surface, center_offset: tuple[int, int]):
         myrocket.time_step(dt)
         
         screen.fill("white")
-        # rect.move_ip(*(myrocket.delta_coordinates.astype(int) * -1))
+        rect.move_ip(*(myrocket.delta_coordinates.astype(int) * -1))
         old_center = rect.center
 
-        angle += 5
+        angle = -1 * myrocket.body_model.tilt * 180 / np.pi
         rotated_surface = pygame.transform.rotate(rocket_surface, angle=angle % 360)
         rotated_rect = rotated_surface.get_rect()
         rotated_rect.center = old_center
 
-        pygame.draw.rect(screen, "black", rotated_rect)
         screen.blit(rotated_surface, rotated_rect)
         pygame.display.flip()
         
         for engine in myrocket.engines:
-            engine.set_force(engine.current_force + 100)
+            engine.set_force(engine.current_force + 10)
 
         print(myrocket.body_model.current_coordinates)
 
