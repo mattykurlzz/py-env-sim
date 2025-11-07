@@ -1,5 +1,6 @@
 import numpy as np
 import pygame, operator
+from abc import ABC, abstractmethod
 
 GRAVITY_CONST = 9.81
 
@@ -129,6 +130,20 @@ class Engine:
         if force <= self.maximum_force and force >= self.minimum_force:
             self.current_force = force
             
+class Immovable:
+    @abstractmethod
+    def collides(self, other_p:Point) -> bool:
+        pass
+        
+class Land(Immovable): 
+    vpos: float
+    def __init__(self) -> None:
+        self.vpos = 0
+        
+    def collides(self, other_p:Point) -> bool: 
+        if other_p.coords[1] <= self.vpos: return True
+        return False
+            
 class RocketBody:
     dims: list[float]
     current_coordinates: np.ndarray 
@@ -140,7 +155,9 @@ class RocketBody:
         self.tilt = tilt
         
         self.current_coordinates = np.array([0, 0], dtype=datatype)
+        self.prev_coordinates = np.array([0, 0], dtype=datatype)
         self.current_vector = transforms.rotate(tilt, Vector())
+        self.prev_vector = transforms.rotate(tilt, Vector())
         
     def get_mass_centre(self): 
         return self.current_vector.origins
@@ -185,6 +202,8 @@ class Rocket:
 
         self.prev_linear_speed: np.ndarray = self.current_linear_speed.copy()
         self.prev_rotation_speed: float = self.current_rotation_speed
+        self.body_model.prev_coordinates = self.body_model.current_coordinates.copy()
+        self.body_model.prev_vector = self.body_model.current_vector.copy()
 
         real_linear_acceleration = self.zero_vector.copy()
         real_rotation_acceleration: float = 0.
@@ -218,17 +237,19 @@ class Rocket:
             self.delta_angle = ( self.current_rotation_speed * time_step + self.prev_rotation_speed * time_step ) / 2
             self.body_model.current_coordinates += self.delta_coordinates
             self.body_model.add_tilt(self.delta_angle)
-        
-class Land: 
-    vpos: float
-    def __init__(self) -> None:
-        self.vpos = 0
+            
+    def revert_timestep_move(self):
+        self.current_linear_speed = self.prev_linear_speed.copy()
+        self.current_rotation_speed = self.prev_rotation_speed
+        self.body_model.current_coordinates = self.body_model.prev_coordinates.copy()
+        self.body_model.current_vector = self.body_model.prev_vector.copy()
         
 class SimEnvironment: 
     rockets: NDArray[np.object_]
     land: Land
     def __init__(self, rockets: list[Rocket]) -> None:
         self.rockets = np.array(rockets, dtype=Rocket)
+        self.land = Land()
         
     def time_step(self, time_step: float):
         for rocket in self.rockets: 
@@ -280,6 +301,9 @@ def launch_sim(screen: pygame.Surface, center_offset: tuple[int, int]):
 
         dt = clock.tick(fps) / 1000 # todo
         env.time_step(dt)
+        for rocket in env.rockets:
+            if env.land.collides(Point(( rocket.body_model.current_coordinates[0], rocket.body_model.current_coordinates[1] ))):
+                rocket.revert_timestep_move()                
         
         screen.fill("white")
 
