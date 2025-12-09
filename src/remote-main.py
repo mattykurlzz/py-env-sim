@@ -6,7 +6,7 @@ import nats
 from nats.errors import TimeoutError
 import json
 
-TICK = 1e-3
+TICK = 0.001
 
 repl = RocketREPL()
 clock = pygame.time.Clock()
@@ -27,8 +27,23 @@ async def send_velocity(state, nc):
     await nc.publish("velocity", payload)
 
 async def send_accelaration(state, nc):
-    payload = json.dumps(state["accelaration"]).encode()
+    payload = json.dumps(state["acceleration"]).encode()
     await nc.publish("accelaration", payload)
+    
+async def make_step(nc):
+    try:
+        repl.do_step(f"{TICK}")
+        
+        print("do step")
+
+        state_dict = repl.do_get_rocket_state("1")
+        
+        await send_timestamp(nc)
+        await send_coordinates(state_dict, nc)
+        await send_velocity(state_dict, nc)
+        await send_accelaration(state_dict, nc)
+    except Exception as e:
+        print(f"[time.tick] Failed to send tick: {e}")
 
 async def ct_state_handler(msg, nc):
     # Print the received engines message
@@ -42,18 +57,7 @@ async def ct_state_handler(msg, nc):
         repl.do_set_engine_force(f"1 {engine_name} {engine_params[engine_name]}")
     
     # Send tick message after receiving engines
-    try:
-        clock.tick(TICK)
-        repl.do_step(f"{TICK}")
-
-        state_dict = repl.do_get_rocket_state("1")
-        
-        await send_timestamp(nc)
-        await send_coordinates(state_dict, nc)
-        await send_velocity(state_dict, nc)
-        await send_accelaration(state_dict, nc)
-    except Exception as e:
-        print(f"[time.tick] Failed to send tick: {e}")
+    await make_step(nc)
 
 async def main():
     elapsed_t = 0
@@ -84,12 +88,13 @@ async def main():
         return
 
     # Create a closure function to pass nc to the handler
-    def create_handler(nc):
-        async def handler(msg):
-            await ct_state_handler(msg, nc)
-        return handler
+    async def handler(msg):
+        await ct_state_handler(msg, nc)
 
+    subscription = await nc.subscribe("engines", cb=handler)
     print("Listening for engines messages. Press Ctrl+C to exit...")
+    
+    await make_step(nc)
     
     try:
         # Keep the connection alive
