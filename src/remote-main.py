@@ -20,7 +20,7 @@ async def send_timestamp(nc):
     
 async def send_coordinates(state, nc):
     payload = json.dumps(state["coordinates"]).encode()
-    await nc.publish("coodrinates", payload)
+    await nc.publish("coordinates", payload)
 
 async def send_velocity(state, nc):
     payload = json.dumps(state["velocity"]).encode()

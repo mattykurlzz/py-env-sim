@@ -39,6 +39,8 @@ def main():
         dt = clock.tick(60) / 1000
         repl.do_step(f"{dt}")
         elapsed_t += dt
+        
+        print(repl.do_get_rocket_state("1")["coordinates"])
 
         if prev_elapsed < elapsed_t - 1:
             prev_elapsed = elapsed_t
