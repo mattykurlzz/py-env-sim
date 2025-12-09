@@ -26,6 +26,7 @@ class RocketREPL(cmd.Cmd):
 
     vector_transforms: dict[str, list[Callable[[Vector], Vector]]] = {}
     engines_dict: dict[str, Engine] = {}
+    timestamp = 0
 
     def __init__(self):
         super().__init__()
@@ -158,13 +159,30 @@ class RocketREPL(cmd.Cmd):
 
         self.simulation.modifyEngineForceById(rocket_id, engine_name, modify)
 
+    def do_set_engine_force(self, arg):
+        """do_set_engine_force <rocket-id> <engine-name> <value>:
+            change engine force value"""
+        if not self.simulation:
+            raise AttributeError("simulation was not initialized")
+
+        parts = shlex.split(arg)
+        rocket_id = int(parts[0])
+        engine_name = parts[1]
+        modify = float(parts[2])
+
+        self.simulation.setEngineForceById(rocket_id, engine_name, modify)
+
     def do_step(self, arg):
         """step <step_s>=1: Move simualtion further"""
         if self.simulation == None:
             raise AttributeError("simulation was not initialized")
+        self.timestamp += float(arg)
         self.simulation.time_step(arg)
 
         self._update_animation()
+        
+    def _get_timestamp(self) -> float:
+        return self.timestamp
 
     def do_animation_init(self, arg=""):
         """animation_init [<fps>]"""
@@ -186,6 +204,24 @@ class RocketREPL(cmd.Cmd):
         if type(self.animation) == Animation:
             del self.animation
         sys.exit(0)
+        
+    def do_get_rocket_state(self, arg) -> dict[str, dict[str, float]]:
+        """get_rocket_state <rocket-id>: Return json-type string with current rocket state"""
+        if not self.simulation:
+            raise AttributeError("simulation was not initialized")
+            
+        id = int(arg)
+        
+        rocket_used = None
+        for rocket in self.simulation.rockets:
+            if rocket.id == id: 
+                rocket_used = rocket
+                break
+        
+        if rocket_used:
+            state_dict = rocket_used.get_state_dict()
+            return state_dict
+        return {}
 
     def _update_animation(self):
         if self.animation and self.simulation:

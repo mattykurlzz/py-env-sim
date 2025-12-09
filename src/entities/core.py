@@ -94,3 +94,14 @@ class SimEnvironment:
         
         engined_rocket.modify_engine_force(engine_name, engine_force_mod)
 
+    def setEngineForceById(self, id: int, engine_name: str, engine_force_mod: float):
+        engined_rocket = None
+        for rocket in self.rockets:
+            if id == rocket.id: 
+                engined_rocket = rocket
+                break
+
+        if not engined_rocket:
+            raise ValueError(f"No rocket with id {id} found")
+        
+        engined_rocket.set_engine_force(engine_name, engine_force_mod)
