@@ -52,7 +52,7 @@ async def ct_state_handler(msg, nc):
     print(f"  Data: {msg.data.decode()}")
     print("-" * 40)
     
-    engine_params: dict[str, float] = json.loads(msg.subject)
+    engine_params: dict[str, float] = json.loads(msg.data.decode())
     for engine_name in engine_params.keys():
         repl.do_set_engine_force(f"1 {engine_name} {engine_params[engine_name]}")
     
@@ -77,6 +77,8 @@ async def main():
     repl.do_attach_engine("1 engine_main")
     repl.do_attach_engine("1 engine_orientation1")
     repl.do_attach_engine("1 engine_orientation2")
+    
+    repl.do_release_rocket("1")
     
     try:
         nc = await nats.connect("nats://localhost:4222")
