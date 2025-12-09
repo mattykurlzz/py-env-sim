@@ -48,17 +48,17 @@ class Rocket:
             "coordinates": {
                 "x": float(self.body_model.current_coordinates[0]),
                 "y": float(self.body_model.current_coordinates[1]),
-                "rotation": float(self.body_model.tilt)
+                "rotate": float(self.body_model.tilt)
             },
             "velocity": {
                 "x": float(self.current_linear_speed[0]),
                 "y": float(self.current_linear_speed[1]),
-                "rotation": float(self.current_rotation_speed),
+                "rotate": float(self.current_rotation_speed),
             },
             "acceleration": {
                 "x": float(self.real_linear_acceleration[0]),
                 "y": float(self.real_linear_acceleration[1]),
-                "rotation": float(self.real_rotation_acceleration)
+                "rotate": float(self.real_rotation_acceleration)
             },
         }
         return ret_dict

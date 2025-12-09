@@ -11,6 +11,25 @@ TICK = 1e-3
 repl = RocketREPL()
 clock = pygame.time.Clock()
 
+async def send_timestamp(nc):
+    ts = repl._get_timestamp()
+    dict = {"t": ts, "dt": TICK}
+    
+    payload = json.dumps(dict).encode()
+    await nc.publish("time.tick", payload)
+    
+async def send_coordinates(state, nc):
+    payload = json.dumps(state["coordinates"]).encode()
+    await nc.publish("coodrinates", payload)
+
+async def send_velocity(state, nc):
+    payload = json.dumps(state["velocity"]).encode()
+    await nc.publish("velocity", payload)
+
+async def send_accelaration(state, nc):
+    payload = json.dumps(state["accelaration"]).encode()
+    await nc.publish("accelaration", payload)
+
 async def ct_state_handler(msg, nc):
     # Print the received engines message
     print(f"[engines] Received message:")
@@ -28,11 +47,11 @@ async def ct_state_handler(msg, nc):
         repl.do_step(f"{TICK}")
 
         state_dict = repl.do_get_rocket_state("1")
-        state_dict["timestamp"] = repl._get_timestamp() # pyright: ignore[reportArgumentType]
-        payload = json.dumps(state_dict).encode()
-        if payload:
-            await nc.publish("time.tick", payload)
-            print(f"[time.tick] Sent tick message")
+        
+        await send_timestamp(nc)
+        await send_coordinates(state_dict, nc)
+        await send_velocity(state_dict, nc)
+        await send_accelaration(state_dict, nc)
     except Exception as e:
         print(f"[time.tick] Failed to send tick: {e}")
 
@@ -69,16 +88,6 @@ async def main():
         async def handler(msg):
             await ct_state_handler(msg, nc)
         return handler
-    
-    subscription = await nc.subscribe("engines", cb=create_handler(nc))
-    print(f"Subscribed to 'engines'")
-
-    state_dict = repl.do_get_rocket_state("1")
-    state_dict["timestamp"] = repl._get_timestamp() # pyright: ignore[reportArgumentType]
-    payload = json.dumps(state_dict).encode()
-
-    if payload:
-        await nc.publish("time.tick", payload)
 
     print("Listening for engines messages. Press Ctrl+C to exit...")
     
